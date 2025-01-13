@@ -45,7 +45,7 @@ def read_and_display_stl(file_paths):
 # STL 文件路径
 stl_files = [
     '../output.stl',   # 替换为第一个 STL 文件的路径
-    '../tumor_hull.stl', # '../tumor.stl',  # 替换为第二个 STL 文件的路径
+    '../tumor.stl', # '../tumor.stl',  # 替换为第二个 STL 文件的路径
 ]
 
 read_and_display_stl(stl_files)

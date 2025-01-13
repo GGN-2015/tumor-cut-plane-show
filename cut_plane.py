@@ -33,9 +33,10 @@ def find_tangent_planes(input_stl, normal_vector):
     # 返回平面方程的参数
     return (normal_vector, d1, points[min_distance_index]), (normal_vector, d2, points[max_distance_index])
 
-# 使用示例
-input_stl_file = '../tumor_hull.stl'  # 替换为输入 STL 文件的路径
-normal_vector = np.array([0.1, -0.5, 1])  # 替换为所需的法向量
+if __name__ == "__main__":
+    # 使用示例
+    input_stl_file = '../tumor_hull.stl'  # 替换为输入 STL 文件的路径
+    normal_vector = np.array([0.1, -0.5, 1])  # 替换为所需的法向量
 
-plane1, plane2 = find_tangent_planes(input_stl_file, normal_vector)
-print(plane1) # 只关心最小坐标值
+    plane1, plane2 = find_tangent_planes(input_stl_file, normal_vector)
+    print(plane1) # 只关心最小坐标值
