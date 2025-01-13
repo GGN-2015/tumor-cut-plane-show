@@ -6,3 +6,5 @@
 - `merge_image.py` 用于合并 `SegmentationCT` 以及 `CT` 中的图像，用红色标出肿瘤位置
 - `convex_hull.py` 用于对 `tumor.stl` 计算三维凸包，并存储进 `tumor_hull.stl`
 - `vtk_show_tumor.py` 使用 vtk 展示骨肿瘤以及骨信息
+- `cut_plane.py` 给定凸壳模型给定支撑向量，计算支撑平面
+- `show_plane.py` 将若干个支撑平面以及凸壳模型共同显示在同一个场景下

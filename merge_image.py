@@ -1,6 +1,6 @@
-import os
 from tqdm import tqdm
 from PIL import Image
+import os
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 def get_mid_color(c1, c2):

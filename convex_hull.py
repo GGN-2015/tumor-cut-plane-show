@@ -1,6 +1,8 @@
 import numpy as np
 from stl import mesh
 from scipy.spatial import ConvexHull
+import os
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 def generate_convex_hull(input_stl, output_stl):
     # 读取 STL 文件
