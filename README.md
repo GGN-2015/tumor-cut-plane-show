@@ -4,4 +4,5 @@
 - `nii_split.py` 用于 SegmentationCT.nii 的图像拆分，拆分后的图像将存储在 `SegmentationCT` 文件夹
 - `nii_split2.py` 用于 CT.nii 的图像拆分，拆分后的图像将存储在 `CT` 文件夹
 - `merge_image.py` 用于合并 `SegmentationCT` 以及 `CT` 中的图像，用红色标出肿瘤位置
+- `convex_hull.py` 用于对 `tumor.stl` 计算三维凸包，并存储进 `tumor_hull.stl`
 - `vtk_show_tumor.py` 使用 vtk 展示骨肿瘤以及骨信息
