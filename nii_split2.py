@@ -1,47 +1,46 @@
 import argparse
 from pathlib import Path
 
-import nibabel as nib
-import numpy as np
-from PIL import Image
+from medical_image_io import DEFAULT_CT_EXPORT_SOURCES, has_glob_pattern, load_image_stack, save_stack_as_png
 
 
-def normalize_to_uint8(slice_data):
-    finite_slice = np.nan_to_num(slice_data, nan=0.0, posinf=0.0, neginf=0.0)
-    min_value = float(np.min(finite_slice))
-    max_value = float(np.max(finite_slice))
-    if max_value <= min_value:
-        return np.zeros(finite_slice.shape, dtype=np.uint8)
-    normalized = (finite_slice - min_value) / (max_value - min_value) * 255
-    return normalized.astype(np.uint8)
-
-
-def split_nii_to_png(nii_file, output_dir, axis=2):
-    nii_path = Path(nii_file).expanduser()
+def source_is_output_folder(stack, output_dir):
+    if stack.source_type != "png" or has_glob_pattern(stack.source):
+        return False
+    source_path = Path(stack.source).expanduser()
     output_path = Path(output_dir).expanduser()
-    if not nii_path.is_file():
-        raise FileNotFoundError(f"NIfTI file not found: {nii_path}")
+    return source_path.is_dir() and source_path.resolve() == output_path.resolve()
 
-    data = nib.load(str(nii_path)).get_fdata()
-    if axis < 0 or axis >= data.ndim:
-        raise ValueError(f"Axis {axis} is invalid for data with {data.ndim} dimensions.")
 
-    output_path.mkdir(parents=True, exist_ok=True)
-    moved = np.moveaxis(data, axis, 2)
-    for i in range(moved.shape[2]):
-        image = Image.fromarray(normalize_to_uint8(moved[:, :, i]))
-        image.save(output_path / f"slice_{i:03d}.png")
+def split_nii_to_png(source=None, output_dir="CT", axis=2, source_type="auto"):
+    stack = load_image_stack(
+        source,
+        source_type=source_type,
+        default_sources=DEFAULT_CT_EXPORT_SOURCES,
+        label="CT",
+        axis=axis,
+    )
+    if source_is_output_folder(stack, output_dir):
+        print(f"Source already points to output PNG folder: {output_dir}. No files were rewritten.")
+        return
 
-    print(f"Saved {moved.shape[2]} slices to: {output_path}")
+    saved_count = save_stack_as_png(stack, output_dir)
+    print(f"Saved {saved_count} slices to: {output_dir} (source: {stack.source_type} {stack.source})")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Split CT.nii into PNG slices.")
-    parser.add_argument("nii_file", nargs="?", default="CT.nii", help="Input NIfTI CT file.")
+    parser = argparse.ArgumentParser(description="Export a CT source to PNG slices.")
+    parser.add_argument(
+        "source",
+        nargs="?",
+        default=None,
+        help="CT source: DICOM folder, NIfTI file, PNG folder, PNG file, or PNG glob.",
+    )
+    parser.add_argument("--source-type", choices=["auto", "png", "nii", "dicom"], default="auto", help="Input type.")
     parser.add_argument("--output", default="CT", help="Output folder for PNG slices.")
-    parser.add_argument("--axis", type=int, default=2, help="Slice axis. Default: 2.")
+    parser.add_argument("--axis", type=int, default=2, help="Slice axis for NIfTI input. Default: 2.")
     args = parser.parse_args()
-    split_nii_to_png(args.nii_file, args.output, args.axis)
+    split_nii_to_png(args.source, args.output, args.axis, args.source_type)
 
 
 if __name__ == "__main__":

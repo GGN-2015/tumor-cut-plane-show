@@ -32,13 +32,19 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-4. Regenerate the README rendering preview from the bundled sample slices.
+4. Merge CT and segmentation slices from the default bundled PNG folders.
+
+```powershell
+python merge_image.py
+```
+
+5. Regenerate the README rendering preview from the bundled sample slices.
 
 ```powershell
 python render_preview.py
 ```
 
-5. If you have STL models, generate the tumor convex hull and open the interactive cut-plane viewer.
+6. If you have STL models, generate the tumor convex hull and open the interactive cut-plane viewer.
 
 ```powershell
 python convex_hull.py tumor.stl tumor_hull.stl
@@ -59,17 +65,21 @@ Large medical source files are not included. Place them in the project root or p
 
 - `CT.nii`: source CT NIfTI volume.
 - `SegmentationCT.nii`: source segmentation NIfTI volume.
+- `DICOM/CT/` or `CT_DICOM/`: source CT DICOM series.
+- `DICOM/SegmentationCT/` or `SegmentationCT_DICOM/`: source segmentation DICOM series.
 - `output.stl`: bone STL model.
 - `tumor.stl`: tumor STL model.
 - `tumor_hull.stl`: generated convex-hull STL model.
+
+Input commands accept DICOM folders, `.nii` / `.nii.gz` files, PNG folders, single PNG files, or PNG glob patterns. If no source is specified, scripts fall back to the default paths above and the bundled `CT/` plus `SegmentationCT/` sample folders.
 
 ## Scripts
 
 | Script | Purpose |
 | --- | --- |
-| `nii_split.py` | Split `SegmentationCT.nii` into PNG slices under `SegmentationCT/`. |
-| `nii_split2.py` | Split `CT.nii` into PNG slices under `CT/`. |
-| `merge_image.py` | Overlay segmentation PNG slices on CT PNG slices and write `merged/`. |
+| `nii_split.py` | Export a segmentation source from DICOM, NIfTI, or PNG sequence to `SegmentationCT/`. |
+| `nii_split2.py` | Export a CT source from DICOM, NIfTI, or PNG sequence to `CT/`. |
+| `merge_image.py` | Overlay CT and segmentation sources from DICOM, NIfTI, or PNG sequence and write `merged/`. |
 | `render_preview.py` | Generate `docs/render-preview.png` from bundled sample PNG slices. |
 | `convex_hull.py` | Generate `tumor_hull.stl` from `tumor.stl`. |
 | `cut_plane.py` | Compute tangent planes for a convex-hull STL and support vector. |
@@ -80,17 +90,35 @@ Large medical source files are not included. Place them in the project root or p
 
 ## Common Commands
 
-Split source NIfTI files:
+Merge from the default paths:
 
 ```powershell
-python nii_split2.py CT.nii --output CT
-python nii_split.py SegmentationCT.nii --output SegmentationCT
+python merge_image.py
 ```
 
-Merge CT and segmentation slices:
+Merge from NIfTI files:
 
 ```powershell
-python merge_image.py --ct CT --segmentation SegmentationCT --output merged
+python merge_image.py --ct CT.nii --segmentation SegmentationCT.nii --output merged
+```
+
+Merge from DICOM series folders:
+
+```powershell
+python merge_image.py --ct DICOM\CT --ct-type dicom --segmentation DICOM\SegmentationCT --segmentation-type dicom --output merged
+```
+
+Merge from user-provided PNG sequences:
+
+```powershell
+python merge_image.py --ct "CT\slice_*.png" --segmentation "SegmentationCT\slice_*.png" --output merged
+```
+
+Export source images to PNG slices:
+
+```powershell
+python nii_split2.py CT.nii --source-type nii --output CT
+python nii_split.py DICOM\SegmentationCT --source-type dicom --output SegmentationCT
 ```
 
 Compute tangent planes for a custom support vector:
