@@ -1,42 +1,63 @@
+import argparse
+from pathlib import Path
+
 import numpy as np
 from stl import mesh
-import os
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+
+def parse_vector(value):
+    parts = [part.strip() for part in value.split(",")]
+    if len(parts) != 3:
+        raise argparse.ArgumentTypeError("Expected a vector in the form x,y,z.")
+    try:
+        return np.array([float(part) for part in parts], dtype=float)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("Vector values must be numbers.") from exc
+
 
 def find_tangent_planes(input_stl, normal_vector):
-    # 读取 STL 文件
-    stl_mesh = mesh.Mesh.from_file(input_stl)
+    input_path = Path(input_stl).expanduser()
+    if not input_path.is_file():
+        raise FileNotFoundError(f"STL file not found: {input_path}")
 
-    # 提取顶点
-    points = np.array(stl_mesh.vectors).reshape(-1, 3)
+    normal = np.asarray(normal_vector, dtype=float)
+    normal_norm = np.linalg.norm(normal)
+    if normal_norm == 0:
+        raise ValueError("normal_vector must not be the zero vector.")
+    normal = normal / normal_norm
 
-    # 计算凸壳的中心
-    center = np.mean(points, axis=0)
+    stl_mesh = mesh.Mesh.from_file(str(input_path))
+    points = np.asarray(stl_mesh.vectors, dtype=float).reshape(-1, 3)
+    if points.size == 0:
+        raise ValueError(f"STL file has no vertices: {input_path}")
 
-    # 规范化法向量
-    normal_vector = normal_vector / np.linalg.norm(normal_vector)
+    distances = np.dot(points, normal)
+    min_distance_index = int(np.argmin(distances))
+    max_distance_index = int(np.argmax(distances))
 
-    # 计算与法向量垂直的平面
-    # 假设平面方程为 Ax + By + Cz + D = 0
-    # D = - (Ax0 + By0 + Cz0)
-    # 这里我们将 D 设置为与中心的距离
-    distances = np.dot(points - center, normal_vector)
-    
-    # 找到两个最大的距离对应的点
-    min_distance_index = np.argmin(distances)
-    max_distance_index = np.argmax(distances)
+    d1 = -float(np.dot(normal, points[min_distance_index]))
+    d2 = -float(np.dot(normal, points[max_distance_index]))
 
-    # 计算两个平面方程的 D 值
-    d1 = -np.dot(normal_vector, points[min_distance_index])
-    d2 = -np.dot(normal_vector, points[max_distance_index])
+    return (normal, d1, points[min_distance_index]), (normal, d2, points[max_distance_index])
 
-    # 返回平面方程的参数
-    return (normal_vector, d1, points[min_distance_index]), (normal_vector, d2, points[max_distance_index])
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Find the two tangent planes of an STL convex hull for a support vector."
+    )
+    parser.add_argument("input_stl", nargs="?", default="tumor_hull.stl", help="Input convex-hull STL file.")
+    parser.add_argument(
+        "--normal",
+        type=parse_vector,
+        default=np.array([0.1, -0.5, 1.0], dtype=float),
+        help="Support vector as x,y,z. Default: 0.1,-0.5,1",
+    )
+    args = parser.parse_args()
+
+    plane1, plane2 = find_tangent_planes(args.input_stl, args.normal)
+    print("Negative tangent plane:", plane1)
+    print("Positive tangent plane:", plane2)
+
 
 if __name__ == "__main__":
-    # 使用示例
-    input_stl_file = '../tumor_hull.stl'  # 替换为输入 STL 文件的路径
-    normal_vector = np.array([0.1, -0.5, 1])  # 替换为所需的法向量
-
-    plane1, plane2 = find_tangent_planes(input_stl_file, normal_vector)
-    print(plane1) # 只关心最小坐标值
+    main()

@@ -1,53 +1,65 @@
-from tqdm import tqdm
+import argparse
+from pathlib import Path
+
+import numpy as np
 from PIL import Image
-import os
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
+from tqdm import tqdm
 
-def get_mid_color(c1, c2):
-    return tuple([round((c1[i] + c2[i]) / 2) for i in range(len(c1))])
 
-def overlay_images(folder_a, folder_b, output_folder):
-    # 创建输出文件夹
-    os.makedirs(output_folder, exist_ok=True)
+def overlay_images(ct_folder, segmentation_folder, output_folder, threshold=240):
+    ct_path = Path(ct_folder).expanduser()
+    segmentation_path = Path(segmentation_folder).expanduser()
+    output_path = Path(output_folder).expanduser()
 
-    # 遍历文件夹 A 中的 PNG 文件
-    for filename in tqdm(list(os.listdir(folder_a))):
-        if filename.endswith('.png'):
-            # 构建完整路径
-            file_a_path = os.path.join(folder_a, filename)
-            file_b_path = os.path.join(folder_b, filename)
-            
-            # 确保文件夹 B 中存在对应的文件
-            if os.path.isfile(file_b_path):
-                # 打开图片
-                img_a = Image.open(file_a_path).convert("RGB")
-                img_b = Image.open(file_b_path).convert("RGB")
+    if not ct_path.is_dir():
+        raise FileNotFoundError(f"CT folder not found: {ct_path}")
+    if not segmentation_path.is_dir():
+        raise FileNotFoundError(f"Segmentation folder not found: {segmentation_path}")
 
-                # 创建一个新的图像用于合并
-                merged_img = Image.new("RGB", img_a.size)
+    output_path.mkdir(parents=True, exist_ok=True)
+    ct_files = sorted(ct_path.glob("*.png"))
+    if not ct_files:
+        raise FileNotFoundError(f"No PNG files found in CT folder: {ct_path}")
 
-                # 遍历每个像素
-                for x in range(img_a.width):
-                    for y in range(img_a.height):
-                        a_pixel = img_a.getpixel((x, y))
-                        b_pixel = img_b.getpixel((x, y))
+    saved_count = 0
+    skipped_count = 0
+    for ct_file in tqdm(ct_files, desc="Merging slices"):
+        segmentation_file = segmentation_path / ct_file.name
+        if not segmentation_file.is_file():
+            skipped_count += 1
+            continue
 
-                        # 检查文件夹 B 中的像素是否为白色
-                        if b_pixel[0] > 240 and b_pixel[1] > 240 and b_pixel[2] > 240:  # 白色区域
-                            # 使用半透明红色覆盖
-                            merged_img.putpixel((x, y), get_mid_color(a_pixel, (255, 0, 0)))  # 半透明红色
-                        else:
-                            # 保持文件夹 A 中的像素
-                            merged_img.putpixel((x, y), a_pixel)
+        ct_image = Image.open(ct_file).convert("RGB")
+        segmentation_image = Image.open(segmentation_file).convert("RGB")
+        if ct_image.size != segmentation_image.size:
+            raise ValueError(
+                f"Image size mismatch for {ct_file.name}: "
+                f"CT={ct_image.size}, segmentation={segmentation_image.size}"
+            )
 
-                # 保存合并后的图像
-                merged_img.save(os.path.join(output_folder, filename))
+        ct_array = np.asarray(ct_image, dtype=np.uint8)
+        segmentation_array = np.asarray(segmentation_image, dtype=np.uint8)
+        tumor_mask = np.all(segmentation_array > threshold, axis=-1)
 
-    print(f"合并完成，结果保存在 '{output_folder}' 文件夹中。")
+        merged_array = ct_array.astype(float)
+        merged_array[tumor_mask] = np.rint((merged_array[tumor_mask] + np.array([255, 0, 0])) / 2)
+        Image.fromarray(merged_array.astype(np.uint8)).save(output_path / ct_file.name)
+        saved_count += 1
 
-# 使用示例
-folder_a = 'CT'  # 替换为文件夹 A 的路径
-folder_b = 'SegmentationCT'  # 替换为文件夹 B 的路径
-output_folder = 'merged'  # 替换为输出文件夹的路径
+    print(f"Merged {saved_count} slices into: {output_path}")
+    if skipped_count:
+        print(f"Skipped {skipped_count} CT slices because matching segmentation files were missing.")
 
-overlay_images(folder_a, folder_b, output_folder)
+
+def main():
+    parser = argparse.ArgumentParser(description="Overlay segmentation masks on CT slices in red.")
+    parser.add_argument("--ct", default="CT", help="Folder containing CT PNG slices.")
+    parser.add_argument("--segmentation", default="SegmentationCT", help="Folder containing segmentation PNG slices.")
+    parser.add_argument("--output", default="merged", help="Output folder for merged PNG slices.")
+    parser.add_argument("--threshold", type=int, default=240, help="Segmentation pixel threshold.")
+    args = parser.parse_args()
+    overlay_images(args.ct, args.segmentation, args.output, args.threshold)
+
+
+if __name__ == "__main__":
+    main()

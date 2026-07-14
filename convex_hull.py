@@ -1,32 +1,43 @@
+import argparse
+from pathlib import Path
+
 import numpy as np
-from stl import mesh
 from scipy.spatial import ConvexHull
-import os
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
+from stl import mesh
+
 
 def generate_convex_hull(input_stl, output_stl):
-    # 读取 STL 文件
-    stl_mesh = mesh.Mesh.from_file(input_stl)
+    input_path = Path(input_stl).expanduser()
+    output_path = Path(output_stl).expanduser()
 
-    # 提取顶点
-    points = np.array(stl_mesh.vectors).reshape(-1, 3)
+    if not input_path.is_file():
+        raise FileNotFoundError(f"Input STL file not found: {input_path}")
 
-    # 计算凸包
+    stl_mesh = mesh.Mesh.from_file(str(input_path))
+    points = np.asarray(stl_mesh.vectors, dtype=float).reshape(-1, 3)
+    points = np.unique(points, axis=0)
+    if len(points) < 4:
+        raise ValueError("At least four unique 3D points are required to build a convex hull.")
+
     hull = ConvexHull(points)
-
-    # 创建一个新的 STL mesh 来保存凸包
     hull_mesh = mesh.Mesh(np.zeros(hull.simplices.shape[0], dtype=mesh.Mesh.dtype))
 
     for i, simplex in enumerate(hull.simplices):
         for j in range(3):
-            hull_mesh.vectors[i][j] = points[simplex[j], :]
+            hull_mesh.vectors[i][j] = points[simplex[j]]
 
-    # 保存凸包 STL 文件
-    hull_mesh.save(output_stl)
-    print(f"凸包已保存到: {output_stl}")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    hull_mesh.save(str(output_path))
+    print(f"Convex hull saved to: {output_path}")
 
-# 使用示例
-input_stl_file = '../tumor.stl'  # 替换为输入 STL 文件的路径
-output_stl_file = '../tumor_hull.stl'  # 替换为输出 STL 文件的路径
 
-generate_convex_hull(input_stl_file, output_stl_file)
+def main():
+    parser = argparse.ArgumentParser(description="Generate a convex-hull STL from a tumor STL model.")
+    parser.add_argument("input_stl", nargs="?", default="tumor.stl", help="Input tumor STL file.")
+    parser.add_argument("output_stl", nargs="?", default="tumor_hull.stl", help="Output hull STL file.")
+    args = parser.parse_args()
+    generate_convex_hull(args.input_stl, args.output_stl)
+
+
+if __name__ == "__main__":
+    main()

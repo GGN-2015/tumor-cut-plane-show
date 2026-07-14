@@ -1,30 +1,48 @@
+import argparse
+from pathlib import Path
+
 import nibabel as nib
 import numpy as np
 from PIL import Image
-import os
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
-# 读取 NIfTI 文件
-nii_file_path = '../SegmentationCT.nii'  # 替换为你的 NIfTI 文件路径
-nii_img = nib.load(nii_file_path)
 
-# 获取图像数据
-data = nii_img.get_fdata()
+def normalize_to_uint8(slice_data):
+    finite_slice = np.nan_to_num(slice_data, nan=0.0, posinf=0.0, neginf=0.0)
+    min_value = float(np.min(finite_slice))
+    max_value = float(np.max(finite_slice))
+    if max_value <= min_value:
+        return np.zeros(finite_slice.shape, dtype=np.uint8)
+    normalized = (finite_slice - min_value) / (max_value - min_value) * 255
+    return normalized.astype(np.uint8)
 
-# 创建输出目录
-output_dir = 'SegmentationCT'
-os.makedirs(output_dir, exist_ok=True)
 
-# 遍历每个切片并保存为图像
-for i in range(data.shape[2]):  # 假设 Z 轴是切片的轴
-    slice_data = data[:, :, i]
-    
-    # 将切片数据归一化到 0-255
-    slice_data = (slice_data - np.min(slice_data)) / (np.max(slice_data) - np.min(slice_data)) * 255
-    slice_data = slice_data.astype(np.uint8)
+def split_nii_to_png(nii_file, output_dir, axis=2):
+    nii_path = Path(nii_file).expanduser()
+    output_path = Path(output_dir).expanduser()
+    if not nii_path.is_file():
+        raise FileNotFoundError(f"NIfTI file not found: {nii_path}")
 
-    # 创建图像并保存
-    img = Image.fromarray(slice_data)
-    img.save(os.path.join(output_dir, f'slice_{i:03d}.png'))
+    data = nib.load(str(nii_path)).get_fdata()
+    if axis < 0 or axis >= data.ndim:
+        raise ValueError(f"Axis {axis} is invalid for data with {data.ndim} dimensions.")
 
-print(f"已将切片保存到目录: {output_dir}")
+    output_path.mkdir(parents=True, exist_ok=True)
+    moved = np.moveaxis(data, axis, 2)
+    for i in range(moved.shape[2]):
+        image = Image.fromarray(normalize_to_uint8(moved[:, :, i]))
+        image.save(output_path / f"slice_{i:03d}.png")
+
+    print(f"Saved {moved.shape[2]} slices to: {output_path}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Split SegmentationCT.nii into PNG slices.")
+    parser.add_argument("nii_file", nargs="?", default="SegmentationCT.nii", help="Input NIfTI segmentation file.")
+    parser.add_argument("--output", default="SegmentationCT", help="Output folder for PNG slices.")
+    parser.add_argument("--axis", type=int, default=2, help="Slice axis. Default: 2.")
+    args = parser.parse_args()
+    split_nii_to_png(args.nii_file, args.output, args.axis)
+
+
+if __name__ == "__main__":
+    main()
